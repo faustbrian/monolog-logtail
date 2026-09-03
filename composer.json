@@ -1,7 +1,7 @@
 {
-    "name": "logtail/monolog-logtail",
+    "name": "faustbrian/monolog-logtail",
     "description": "Logtail handler for Monolog",
-    "homepage": "https://github.com/logtail/logtail-php",
+    "homepage": "https://github.com/faustbrian/monolog-logtail",
     "type": "library",
     "license": "ISC",
     "keywords": [
@@ -11,6 +11,9 @@
         "php": ">=8.1",
         "monolog/monolog": "^3",
         "ext-curl": "*"
+    },
+    "replace": {
+        "logtail/monolog-logtail": "self.version"
     },
     "require-dev": {
         "phpunit/phpunit": "^8"

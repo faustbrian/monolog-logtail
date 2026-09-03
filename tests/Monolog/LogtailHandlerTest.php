@@ -19,6 +19,19 @@ class MockLogtailClient extends LogtailClient {
     }
 }
 
+class FailingLogtailClient extends LogtailClient
+{
+    public function __construct()
+    {
+        parent::__construct('test-source-token');
+    }
+
+    public function send($data): void
+    {
+        throw new \RuntimeException('simulated transport failure');
+    }
+}
+
 class LogtailHandlerTest extends \PHPUnit\Framework\TestCase {
     protected function setUp(): void
     {
@@ -126,5 +139,90 @@ class LogtailHandlerTest extends \PHPUnit\Framework\TestCase {
         $this->assertEquals(0, json_last_error(), "The formatted data is not valid JSON");
         $this->assertTrue(is_array($decoded), "Expected array of logs");
         $this->assertCount(2, $decoded, "Expected two logs");
+    }
+
+    public function testBufferedResetDoesNotExposeTransportFailureWhenExceptionThrowingIsDisabled(): void
+    {
+        $synchronousHandler = new SynchronousLogtailHandler('sourceTokenXYZ');
+        $handler = new LogtailHandler('sourceTokenXYZ');
+        $failingClient = new FailingLogtailClient();
+
+        (function() use ($failingClient): void {
+            $this->client = $failingClient;
+        })->call($synchronousHandler);
+        (function() use ($synchronousHandler): void {
+            $this->handler = $synchronousHandler;
+        })->call($handler);
+
+        set_error_handler(static function(int $severity, string $message): never {
+            throw new \ErrorException($message, 0, $severity);
+        });
+
+        try {
+            $logger = new \Monolog\Logger('test');
+            $logger->pushHandler($handler);
+            $logger->error('test message');
+            $logger->reset();
+
+            $this->addToAssertionCount(1);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function testSynchronousWriteDoesNotExposeTransportFailureWhenExceptionThrowingIsDisabled(): void
+    {
+        $handler = new SynchronousLogtailHandler('sourceTokenXYZ');
+        $failingClient = new FailingLogtailClient();
+
+        (function() use ($failingClient): void {
+            $this->client = $failingClient;
+        })->call($handler);
+
+        set_error_handler(static function(int $severity, string $message): never {
+            throw new \ErrorException($message, 0, $severity);
+        });
+
+        try {
+            $logger = new \Monolog\Logger('test');
+            $logger->pushHandler($handler);
+            $logger->error('test message');
+
+            $this->addToAssertionCount(1);
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function testBuilderPropagatesTransportFailureWhenExceptionThrowingIsEnabled(): void
+    {
+        $handler = LogtailHandlerBuilder::withSourceToken('sourceTokenXYZ')
+            ->withExceptionThrowing(true)
+            ->build();
+        $synchronousHandler = (function(): SynchronousLogtailHandler {
+            return $this->handler;
+        })->call($handler);
+        $failingClient = new FailingLogtailClient();
+
+        (function() use ($failingClient): void {
+            $this->client = $failingClient;
+        })->call($synchronousHandler);
+
+        $logger = new \Monolog\Logger('test');
+        $logger->pushHandler($handler);
+        $logger->error('test message');
+
+        $exception = null;
+
+        try {
+            $logger->reset();
+        } catch (\RuntimeException $throwable) {
+            $exception = $throwable;
+        } finally {
+            $handler->clear();
+        }
+
+        $this->assertInstanceOf(\RuntimeException::class, $exception);
+        $this->assertSame('simulated transport failure', $exception->getMessage());
     }
 }

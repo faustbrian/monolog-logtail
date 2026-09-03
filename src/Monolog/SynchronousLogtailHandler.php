@@ -65,12 +65,10 @@ class SynchronousLogtailHandler extends AbstractProcessingHandler
     protected function write(LogRecord $record): void {
         try {
             $this->client->send($record->formatted);
-        } catch (Throwable $throwable) {
+        } catch (\Throwable $throwable) {
             if ($this->throwExceptions) {
                 throw $throwable;
-            } else {
-                 trigger_error("Failed to send a single log record to Better Stack because of " . $throwable, E_USER_WARNING);
-             }
+            }
         }
     }
 
@@ -86,8 +84,6 @@ class SynchronousLogtailHandler extends AbstractProcessingHandler
         } catch (\Throwable $throwable) {
             if ($this->throwExceptions) {
                 throw $throwable;
-            } else {
-                 trigger_error("Failed to send " . count($records) . " log records to Better Stack because of " . $throwable, E_USER_WARNING);
             }
         }
     }

@@ -1,5 +1,5 @@
 {
     "require": {
-        "logtail/monolog-logtail": "^3.0"
+        "faustbrian/monolog-logtail": "^3.0"
     }
 }
